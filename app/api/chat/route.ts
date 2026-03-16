@@ -14,28 +14,17 @@ export async function POST(req: NextRequest) {
 
   const hf = new HfInference(process.env.HUGGINGFACE_API_TOKEN);
 
-  const prompt = messages
-    .map((m: { role: string; content: string }) =>
-      m.role === "user"
-        ? `[INST] ${m.content} [/INST]`
-        : m.content
-    )
-    .join("\n");
-
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of hf.textGenerationStream({
+        for await (const chunk of hf.chatCompletionStream({
           model: MODEL,
-          inputs: prompt,
-          parameters: {
-            max_new_tokens: 1024,
-            temperature: 0.7,
-            repetition_penalty: 1.1,
-            return_full_text: false,
-          },
+          messages: messages,
+          max_tokens: 1024,
+          temperature: 0.7,
         })) {
-          controller.enqueue(new TextEncoder().encode(chunk.token.text));
+          const token = chunk.choices[0]?.delta?.content ?? "";
+          if (token) controller.enqueue(new TextEncoder().encode(token));
         }
       } catch (err) {
         controller.error(err);
